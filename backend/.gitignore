@@ -1,0 +1,22 @@
+# AI editors
+.agents/
+.claude/
+.windsurf/
+AGENTS.md
+CLAUDE.md
+skills-lock.json
+
+# Environment
+.env
+.env.*
+
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+
+# Build
+dist/
+build/
+generated/
