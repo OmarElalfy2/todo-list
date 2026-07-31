@@ -16,6 +16,8 @@ app.use(express.json());
 app.use("/api/users", userRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/categories", categoryRoutes);
+app.use("/api/tasks", taskRoutes);
+
 app.get("/", (req, res) => {
     return res.json({
         success: true,
