@@ -52,8 +52,9 @@ export default function TaskItem({
 
                     {task.due_date && (
                         <span>
+                            Due date:{" "}
                             {new Date(
-                                task.due_date
+                                `${task.due_date.slice(0, 10)}T00:00:00`
                             ).toLocaleDateString()}
                         </span>
                     )}
