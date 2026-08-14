@@ -64,19 +64,41 @@ export default function Sidebar({
     const [busyId, setBusyId] =
         useState<number | null>(null);
 
+    const [categoryError, setCategoryError] =
+        useState("");
+
+    const [creatingCategory, setCreatingCategory] =
+        useState(false);
+
+    const [categoryToDelete, setCategoryToDelete] =
+        useState<Category | null>(null);
+
     const editInputRef = useRef<HTMLInputElement>(null);
 
     async function handleCreateCategory() {
         const name = categoryName.trim();
 
         if (!name) {
+            setCategoryError("Category name is required.");
             return;
         }
 
-        await onCreateCategory(name);
+        if (name.length > 100) {
+            setCategoryError("Category name cannot exceed 100 characters.");
+            return;
+        }
 
-        setCategoryName("");
-        setShowCategoryInput(false);
+        try {
+            setCreatingCategory(true);
+            setCategoryError("");
+            await onCreateCategory(name);
+            setCategoryName("");
+            setShowCategoryInput(false);
+        } catch (error) {
+            setCategoryError(error instanceof Error ? error.message : "Could not create category.");
+        } finally {
+            setCreatingCategory(false);
+        }
     }
 
     function startEditing(category: Category) {
@@ -93,7 +115,17 @@ export default function Sidebar({
     async function commitEditing(categoryId: number) {
         const name = editingName.trim();
 
-        if (!name || busyId !== null) return;
+        if (!name) {
+            setCategoryError("Category name is required.");
+            return;
+        }
+
+        if (name.length > 100) {
+            setCategoryError("Category name cannot exceed 100 characters.");
+            return;
+        }
+
+        if (busyId !== null) return;
 
         // No change → just cancel
         const original = categories.find(
@@ -106,29 +138,48 @@ export default function Sidebar({
 
         setBusyId(categoryId);
         try {
+            setCategoryError("");
             await onUpdateCategory(categoryId, name);
+            cancelEditing();
+        } catch (error) {
+            setCategoryError(error instanceof Error ? error.message : "Could not rename category.");
         } finally {
             setBusyId(null);
         }
-        cancelEditing();
     }
 
-    async function handleDelete(
+    function handleDelete(
         e: React.MouseEvent,
         categoryId: number
     ) {
         e.stopPropagation();
-        if (busyId !== null) return;
+        const category = categories.find((item) => item.id === categoryId);
+
+        if (busyId !== null || !category) return;
+
+        setCategoryError("");
+        setCategoryToDelete(category);
+    }
+
+    async function confirmCategoryDelete() {
+        if (!categoryToDelete || busyId !== null) return;
+
+        const categoryId = categoryToDelete.id;
 
         setBusyId(categoryId);
         try {
+            setCategoryError("");
             await onDeleteCategory(categoryId);
+            setCategoryToDelete(null);
+        } catch (error) {
+            setCategoryError(error instanceof Error ? error.message : "Could not delete category.");
         } finally {
             setBusyId(null);
         }
     }
 
     return (
+        <>
         <aside className="flex h-screen w-72 flex-col border-r border-slate-200 bg-white p-6">
             <h1 className="mb-8 text-2xl font-bold">
                 <span className="text-blue-600">✓</span>{" "}
@@ -154,7 +205,7 @@ export default function Sidebar({
             <nav className="space-y-1">
                 {[
                     ["all", "All Tasks"],
-                    ["today", "Today"],
+                    ["today", "Due Today"],
                     ["completed", "Completed"],
                     ["pending", "Pending"],
                 ].map(([value, label]) => (
@@ -193,10 +244,14 @@ export default function Sidebar({
                                 autoFocus
                                 ref={editInputRef}
                                 value={editingName}
+                                maxLength={101}
                                 onChange={(e) =>
-                                    setEditingName(
-                                        e.target.value
-                                    )
+                                    {
+                                        setEditingName(
+                                            e.target.value
+                                        );
+                                        setCategoryError("");
+                                    }
                                 }
                                 onKeyDown={(e) => {
                                     if (e.key === "Enter") {
@@ -343,24 +398,28 @@ export default function Sidebar({
                 <div className="mt-3 space-y-2">
                     <input
                         value={categoryName}
-                        onChange={(e) =>
-                            setCategoryName(e.target.value)
-                        }
+                        maxLength={101}
+                        onChange={(e) => {
+                            setCategoryName(e.target.value);
+                            setCategoryError("");
+                        }}
                         onKeyDown={(e) => {
                             if (e.key === "Enter") {
                                 handleCreateCategory();
                             }
                         }}
                         autoFocus
+                        disabled={creatingCategory}
                         placeholder="Category name"
                         className="w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500"
                     />
 
                     <button
                         onClick={handleCreateCategory}
-                        className="text-sm font-medium text-blue-600"
+                        disabled={creatingCategory}
+                        className="text-sm font-medium text-blue-600 disabled:opacity-50"
                     >
-                        Save Category
+                        {creatingCategory ? "Saving..." : "Save Category"}
                     </button>
                 </div>
             ) : (
@@ -374,6 +433,12 @@ export default function Sidebar({
                 </button>
             )}
 
+            {categoryError && (
+                <p role="alert" className="mt-2 text-xs text-red-500">
+                    {categoryError}
+                </p>
+            )}
+
             <div className="mt-auto">
                 <button
                     onClick={onLogout}
@@ -383,5 +448,78 @@ export default function Sidebar({
                 </button>
             </div>
         </aside>
+
+        {categoryToDelete && (
+            <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
+                role="presentation"
+                onMouseDown={(event) => {
+                    if (
+                        event.target === event.currentTarget &&
+                        busyId !== categoryToDelete.id
+                    ) {
+                        setCategoryToDelete(null);
+                    }
+                }}
+            >
+                <div
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="delete-category-title"
+                    aria-describedby="delete-category-description"
+                    className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+                >
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600">
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            className="h-6 w-6"
+                            aria-hidden="true"
+                        >
+                            <path d="M3 6h18" />
+                            <path d="M8 6V4h8v2" />
+                            <path d="M19 6l-1 14H6L5 6" />
+                            <path d="M10 11v5M14 11v5" />
+                        </svg>
+                    </div>
+
+                    <h2 id="delete-category-title" className="mt-5 text-xl font-bold text-slate-900">
+                        Delete category?
+                    </h2>
+                    <p id="delete-category-description" className="mt-2 text-sm leading-6 text-slate-600">
+                        <span className="font-semibold text-slate-800">{categoryToDelete.name}</span>{" "}
+                        and all tasks in this category will be permanently deleted.
+                    </p>
+
+                    {categoryError && (
+                        <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-600">
+                            {categoryError}
+                        </p>
+                    )}
+
+                    <div className="mt-6 flex justify-end gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setCategoryToDelete(null)}
+                            disabled={busyId === categoryToDelete.id}
+                            className="rounded-xl border border-slate-200 px-5 py-2.5 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={confirmCategoryDelete}
+                            disabled={busyId === categoryToDelete.id}
+                            className="rounded-xl bg-red-600 px-5 py-2.5 font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            {busyId === categoryToDelete.id ? "Deleting..." : "Delete"}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+        </>
     );
 }

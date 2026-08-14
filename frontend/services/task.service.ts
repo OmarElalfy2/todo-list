@@ -17,8 +17,31 @@ interface TaskResponse {
     data: Task;
 }
 
-export function getTasks() {
-    return apiRequest<TasksResponse>("/tasks");
+export interface TaskFilters {
+    search?: string;
+    date?: string;
+    completed?: boolean;
+    categoryId?: number;
+}
+
+export function getTasks(filters: TaskFilters = {}) {
+    const params = new URLSearchParams();
+
+    if (filters.search) {
+        params.set("search", filters.search);
+    } else if (filters.completed !== undefined) {
+        params.set("completed", String(filters.completed));
+    } else if (filters.categoryId !== undefined) {
+        params.set("categoryId", String(filters.categoryId));
+    } else if (filters.date) {
+        params.set("date", filters.date);
+    }
+
+    const query = params.toString();
+
+    return apiRequest<TasksResponse>(
+        `/tasks${query ? `?${query}` : ""}`
+    );
 }
 
 export function createTask(data: CreateTaskData) {
