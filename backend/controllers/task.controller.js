@@ -90,63 +90,15 @@ const getTasks = async (req, res) => {
     try {
         const userId = req.user.userId;
 
-        const {
-            search,
-            date,
-            completed,
-            categoryId,
-        } = req.query;
-
-        const where = {
-            user_id: userId,
-        }
-
-        if (search) {
-            where.OR = [
-                {
-                    title: {
-                        contains: search,
-                        mode: 'insensitive',
-                    },
-                },
-                {
-                    description: {
-                        contains: search,
-                        mode: 'insensitive',
-                    },
-                },
-            ];
-        }
-
-        else if (completed !== undefined) {
-            where.is_completed = completed;
-        }
-        else if (categoryId !== undefined) {
-            where.category_id = Number(categoryId);
-        }
-        else if (date !== undefined) {
-            const startDate = new Date(
-                `${date}T00:00:00.000Z`
-            );
-            const nextDate = new Date(startDate);
-
-            nextDate.setUTCDate(
-                nextDate.getUTCDate() + 1
-            );
-
-            where.due_date = {
-                gte: startDate,
-                lt: nextDate,
-            };
-
-        }
-
         const tasks = await prisma.tasks.findMany({
-            where,
+            where: {
+                user_id: userId,
+            },
             orderBy: {
                 created_at: "desc",
             },
         });
+
         return res.status(200).json({
             success: true,
             message: "Tasks fetched successfully",
